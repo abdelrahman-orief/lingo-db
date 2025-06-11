@@ -1,5 +1,6 @@
 #include "lingodb/runtime/DateRuntime.h"
 #include "arrow/vendored/datetime/date.h"
+#include "lingodb/runtime/StringRuntime.h"
 #include "lingodb/runtime/helpers.h"
 //adapted from apache gandiva
 //source: https://github.com/apache/arrow/blob/3da66003ab2543c231fdf6551c2eb886f9a7e68f/cpp/src/gandiva/precompiled/epoch_time_point.h
@@ -14,9 +15,11 @@ class DateHelper {
       : DateHelper(std::chrono::nanoseconds(nanosecondsSinceEpoch)) {}
 
    int64_t tmYear() const { return static_cast<int>(yearMonthDay().year()) - 1900; }
-
    int64_t tmMon() const { return static_cast<unsigned int>(yearMonthDay().month()) - 1; }
    int64_t tmHour() const { return timeOfDay().hours().count(); }
+   int64_t tmMinute() const { return timeOfDay().minutes().count(); }
+   int64_t tmSecond() const { return timeOfDay().seconds().count(); }
+
 
    int64_t tmYday() const {
       auto toDays = date::floor<date::days>(tp);
@@ -69,10 +72,41 @@ int64_t lingodb::runtime::DateRuntime::extractMonth(int64_t date) {
 int64_t lingodb::runtime::DateRuntime::extractDay(int64_t date) {
    return DateHelper(date).tmMday();
 }
+int64_t lingodb::runtime::DateRuntime::extractHour(int64_t date) {
+   return DateHelper(date).tmHour();
+}
+int64_t lingodb::runtime::DateRuntime::extractMinute(int64_t date) {
+   return DateHelper(date).tmMinute();
+}
+int64_t lingodb::runtime::DateRuntime::extractSecond(int64_t date) {
+   return DateHelper(date).tmSecond();
+}
 int64_t lingodb::runtime::DateRuntime::dateDiffSeconds(int64_t start, int64_t end) {
    auto diffNanos = end - start;
    return diffNanos / (1000000000ull);
 }
-int64_t lingodb::runtime::DateRuntime::extractHour(int64_t date) {
-   return DateHelper(date).tmHour();
+int64_t lingodb::runtime::DateRuntime::dateTrunc(VarLen32 part, int64_t date) {
+   // TODO we only implement a subset of the postgres functionality
+   // https://www.postgresql.org/docs/current/functions-datetime.html#FUNCTIONS-DATETIME-TRUNC
+   int64_t result = 0;
+
+   result += extractYear(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("year"))) {return result;}
+
+   result += extractMonth(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("month"))) {return result;}
+
+   result += extractDay(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("day"))) {return result;}
+
+   result += extractHour(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("hour"))) {return result;}
+
+   result += extractMinute(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("minute"))) {return result;}
+
+   result += extractSecond(date);
+   if (StringRuntime::compareEq(part, VarLen32::fromString("second"))) {return result;}
+
+   throw std::runtime_error("Invalid on unimplemented date part");
 }
